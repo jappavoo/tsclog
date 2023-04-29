@@ -1,1 +1,5 @@
 *~
+*.so
+*.o
+*.class
+tsclog.h
