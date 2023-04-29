@@ -12,7 +12,7 @@ tsclog.h: tsclog.class
 	javac -h . tsclog.java
 
 tsclog.o: tsclog.c now.h cacheline.h tsclog.h
-	gcc -D __TSCLOG_LIB__ -O2 -c -fPIC -I${JAVA_INCLUDE} -I${JAVA_INCLUDE}/linux $< -o $@
+	gcc -D COHERENCY_LINE_SIZE=${clinesize} -D __TSCLOG_LIB__ -O2 -c -fPIC -I${JAVA_INCLUDE} -I${JAVA_INCLUDE}/linux $< -o $@
 
 tsclog.so: tsclog.o
 	gcc -D __TSCLOG_LIB__ -shared -fPIC -o $@ $< -lc
