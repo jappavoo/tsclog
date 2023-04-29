@@ -1,5 +1,5 @@
 clinesize=$(shell cat /sys/devices/system/cpu/cpu0/cache/*/coherency_line_size | head -1)
-JAVA_INCLUDE=/usr/lib/jvm/java-11-openjdk-amd64/include
+JAVA_INCLUDE=$(shell dirname $$(find /usr/lib/jvm/java-11* -name jni.h))
 
 .PHONY: clean all
 
