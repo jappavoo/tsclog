@@ -6,7 +6,7 @@
 #define CACHE_LINE_SIZE COHERENCY_LINE_SIZE
 #else
 // hardcoded default
-#define CACHE_LINE_SIZE 42
+#define CACHE_LINE_SIZE 64
 #endif
 
 #endif //  __CACHE_LINE_H__
