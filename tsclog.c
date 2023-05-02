@@ -1,4 +1,7 @@
 #define _GNU_SOURCE
+#include <stdio.h>
+#include <unistd.h>
+#include <err.h>
 #include <sched.h>
 #include <sys/sysinfo.h>
 #include <inttypes.h>
@@ -6,26 +9,121 @@
 #include "cacheline.h"
 
 
+void pinCpu(int cpu)
+{
+  cpu_set_t  mask;
+  CPU_ZERO(&mask);
+
+  if (cpu == -1 ) {
+    cpu = sched_getcpu();
+    if (cpu == -1) {
+      err(1, "could not determine current cpu");
+    }
+  }
+
+  CPU_SET(cpu, &mask);
+  if (sched_setaffinity(0, sizeof(mask), &mask) != 0) {
+    err(1, "could not pin to cpu=%d",cpu);
+  }
+  
+#ifdef VERBOSE
+    fprintf(stderr, "PINNED TO CPU: %d\n", cpu);
+#endif
+    
+}
+
 #ifdef __TSCLOG_LIB__
 #include "tsclog.h"
 
-JNIEXPORT jint JNICALL Java_tsclog_init(JNIEnv *env, jclass jcl)
+JNIEXPORT jint JNICALL
+Java_tsclog_availcpus(JNIEnv *, jclass)
 {
-  return 1;
+  return get_nprocs();
 }
 
-JNIEXPORT jint JNICALL Java_tsclog_log(JNIEnv *env, jclass jcl)
+JNIEXPORT void JNICALL
+Java_tsclog_pin(JNIEnv *env, jclass jcl, jint cpu)
 {
-  return 2;
+  pinCpu(cpu);
 }
 
-JNIEXPORT jint JNICALL Java_tsclog_done(JNIEnv *env, jclass jcl)
+JNIEXPORT jint JNICALL
+Java_tsclog_cpu(JNIEnv *, jclass)
 {
-  return 3;
+  unsigned int cpu, node;
+  getcpu(&cpu, &node);
+  return cpu;
+}
+
+
+JNIEXPORT jint JNICALL
+Java_tsclog_tid(JNIEnv *, jclass)
+{
+  int tid;
+  tid = gettid();
+  return tid;
+}
+
+JNIEXPORT jlong JNICALL
+Java_tsclog_now(JNIEnv *env, jclass jcl)
+{
+  return  now();
+}
+
+JNIEXPORT jlong JNICALL
+Java_tsclog_stdout_1now(JNIEnv *env, jclass jcl)
+{
+  uint64_t t=now();
+  unsigned int cpu, node;
+  int tid = gettid();
+  getcpu(&cpu, &node);
+  printf("tsclog: %d %d %lu\n", cpu, tid, t);
+  return t;
+}
+
+JNIEXPORT jlong JNICALL
+Java_tsclog_stderr_1now(JNIEnv *env, jclass jcl)
+{
+  uint64_t t=now();
+  unsigned int cpu, node;
+  int tid = gettid();
+  getcpu(&cpu, &node);
+  fprintf(stderr, "tsclog: %d %d %lu\n", cpu, tid, t);
+  return t;
+}
+
+JNIEXPORT jlong JNICALL
+Java_tsclog_stdout_1label_1now(JNIEnv *env, jclass jcl,
+					     jstring label)
+{
+  const char * cp = (*env)->GetStringUTFChars(env, label, NULL);
+  uint64_t t=now();
+  unsigned int cpu, node;
+  int tid = gettid();
+  getcpu(&cpu, &node);
+  printf("tsclog: %s %d %d %lu\n", cp, cpu, tid, t);
+  (*env)->ReleaseStringUTFChars(env, label, cp);
+  return t;
+  
+}
+
+JNIEXPORT jlong JNICALL
+Java_tsclog_stderr_1label_1now(JNIEnv *env,
+			       jclass jcl,
+			       jstring label)
+{
+  const char * cp = (*env)->GetStringUTFChars(env, label, NULL);
+  uint64_t t=now();
+  unsigned int cpu, node;
+  int tid = gettid();
+  getcpu(&cpu, &node);
+  fprintf(stderr, "tsclog: %s %d %d %lu\n", cp, cpu, tid, t);
+  (*env)->ReleaseStringUTFChars(env, label, cp);
+  return t;
 }
 
 #else
-#include <stdio.h>
+
 
 unsigned long long sum = 0;
 int

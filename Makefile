@@ -6,7 +6,7 @@ JAVA_INCLUDE=$(shell dirname $$(find /usr/lib/jvm/java-11* -name jni.h))
 all: run
 
 run: libtsclog.so
-	java  -Djava.library.path=$(pwd) tsclog
+	java  -Djava.library.path=$(shell pwd) tsclog
 
 tsclog.class: tsclog.java
 	javac tsclog.java
