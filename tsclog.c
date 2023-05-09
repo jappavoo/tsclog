@@ -1,3 +1,8 @@
+/******************************************************************************
+* Copyright (C) 2023 by Jonathan Appavoo, Boston University
+*****************************************************************************/
+
+
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <unistd.h>
@@ -6,13 +11,15 @@
 #include <sched.h>
 #include <sys/sysinfo.h>
 #include <inttypes.h>
+#include <assert.h>
 #include "now.h"
 #include "cacheline.h"
+#include "ntstore.h"
 
-#define LOG_CPU
-#define LOG_TID
+//#define LOG_CPU
+//#define LOG_TID
 
-struct logentry {
+struct TscLogEntry {
 #ifdef LOG_CPU
   uint32_t cpu;
 #endif
@@ -20,18 +27,31 @@ struct logentry {
   uint32_t tid;
 #endif
   uint64_t tsc;
-  uint64_t data[];
+  uint64_t values[];
 };
 
-struct Log {
-  struct Info {
-    uint64_t len;
-    uint64_t *cur;
-  } info;
-  struct logentry entries[];
-};
+struct TscLog {
+  union Header {
+    char raw[CACHE_LINE_SIZE];
+    struct Info{
+      void    *cur;
+      uint64_t bytes;
+      uint32_t migrations;
+      uint32_t cpuid;
+      uint32_t valperentry;
+      uint32_t len;
+      uint32_t tid;
+    } info;
+  } hdr;
+  uint8_t entries[];
+} __attribute__ ((aligned (CACHE_LINE_SIZE)));;
 
-void pinCpu(int cpu)
+// Ensure header info fits within the raw size set aside 
+_Static_assert(sizeof(((struct TscLog *)0)->hdr.raw) >=
+	       sizeof(((struct TscLog *)0)->hdr.info),
+	       "TsLog Info exceeds a cacheline");
+
+void tsclog_pinCpu(int cpu)
 {
   cpu_set_t  mask;
   CPU_ZERO(&mask);
@@ -54,6 +74,44 @@ void pinCpu(int cpu)
     
 }
 
+uint64_t
+tsclog_newlog(uint32_t n, uint32_t values_per_entry) {
+  struct TscLog *log;
+  uint64_t now;
+  uint64_t mem = 0;
+  uint64_t bytes = sizeof(struct TscLog) +
+    n * (sizeof(struct TscLogEntry) + (values_per_entry * sizeof(uint64_t)));
+  if (n) {
+    mem = (uint64_t)aligned_alloc(CACHE_LINE_SIZE, bytes);
+  }
+  log = (void *)mem;
+  assert(log);
+  log->hdr.info.cur = &(log->entries[0]);
+  log->hdr.info.valperentry = values_per_entry;
+  log->hdr.info.len = n;
+  log->hdr.info.bytes = bytes;
+  
+  // initialize dynamic facts
+  now = now_and_procid(&(log->hdr.info.cpuid));
+  log->hdr.info.tid = gettid();
+  log->hdr.info.migrations = 0;
+  
+#ifdef VERBOSE
+  fprintf(stderr,
+	  "tsclog: now:%lu: new(n=%u, values_per_entry=%u):\n   bytes=%"
+	  PRIu64  "\n   mem=%" PRIx64 " cur=%p\n   tid=%u\n   "
+	  "cpuid=%d\n   migrations=%u\n"
+	  "   sizeof(struct LogEntry)=%lu "
+	  "sizeof(struct Log)=%lu\n",  now,
+	  log->hdr.info.len, log->hdr.info.valperentry,
+	  log->hdr.info.bytes, mem, log->hdr.info.cur,
+	  log->hdr.info.tid, log->hdr.info.cpuid,
+	  log->hdr.info.migrations,
+	  sizeof(struct TscLogEntry), sizeof(struct TscLog));
+#endif
+  return mem;
+}
+
 #ifdef __TSCLOG_LIB__
 #include "tsclog.h"
 
@@ -66,7 +124,7 @@ Java_tsclog_availcpus(JNIEnv *, jclass)
 JNIEXPORT void JNICALL
 Java_tsclog_pin(JNIEnv *env, jclass jcl, jint cpu)
 {
-  pinCpu(cpu);
+  tsclog_pinCpu(cpu);
 }
 
 JNIEXPORT jint JNICALL
@@ -89,29 +147,29 @@ Java_tsclog_tid(JNIEnv *, jclass)
 JNIEXPORT jlong JNICALL
 Java_tsclog_now(JNIEnv *env, jclass jcl)
 {
-  return  now();
+  return now();
 }
 
 JNIEXPORT jlong JNICALL
 Java_tsclog_stdout_1now(JNIEnv *env, jclass jcl)
 {
-  uint64_t t=now();
-  unsigned int cpu, node;
+  uint32_t cpuid;
+  uint64_t now = now_and_procid(&cpuid);
   int tid = gettid();
-  getcpu(&cpu, &node);
-  printf("tsclog: %d %d %lu\n", cpu, tid, t);
-  return t;
+
+  printf("tsclog: %d %d %lu\n", tid, cpuid, now);
+  return now;
 }
 
 JNIEXPORT jlong JNICALL
 Java_tsclog_stderr_1now(JNIEnv *env, jclass jcl)
 {
-  uint64_t t=now();
-  unsigned int cpu, node;
+  uint32_t cpuid;
+  uint64_t now = now_and_procid(&cpuid);
   int tid = gettid();
-  getcpu(&cpu, &node);
-  fprintf(stderr, "tsclog: %d %d %lu\n", cpu, tid, t);
-  return t;
+
+  fprintf(stderr, "tsclog: %d %d %lu\n", tid, cpuid, now);
+  return now;
 }
 
 JNIEXPORT jlong JNICALL
@@ -119,13 +177,13 @@ Java_tsclog_stdout_1label_1now(JNIEnv *env, jclass jcl,
 					     jstring label)
 {
   const char * cp = (*env)->GetStringUTFChars(env, label, NULL);
-  uint64_t t=now();
-  unsigned int cpu, node;
+  uint32_t cpuid;
+  uint64_t now = now_and_procid(&cpuid);
   int tid = gettid();
-  getcpu(&cpu, &node);
-  printf("tsclog: %s %d %d %lu\n", cp, cpu, tid, t);
+
+  printf("tsclog: %s %d %d %lu\n", cp, tid, cpuid, now);
   (*env)->ReleaseStringUTFChars(env, label, cp);
-  return t;
+  return now;
   
 }
 
@@ -135,23 +193,18 @@ Java_tsclog_stderr_1label_1now(JNIEnv *env,
 			       jstring label)
 {
   const char * cp = (*env)->GetStringUTFChars(env, label, NULL);
-  uint64_t t=now();
-  unsigned int cpu, node;
+  uint32_t cpuid;
+  uint64_t now = now_and_procid(&cpuid);
   int tid = gettid();
-  getcpu(&cpu, &node);
-  fprintf(stderr, "tsclog: %s %d %d %lu\n", cp, cpu, tid, t);
+
+  fprintf(stderr, "tsclog: %s %d %d %lu\n", cp, tid, cpuid, now);
   (*env)->ReleaseStringUTFChars(env, label, cp);
-  return t;
+  return now;
 }
 
 JNIEXPORT jlong JNICALL
 Java_tsclog_mklog(JNIEnv *env, jclass jcl, jlong n)
 {
-  uint64_t mem = 0;
-  if (n) {
-    mem = (uint64_t)malloc(n*sizeof(uint64_t));
-  }
-  return mem;
 }
 
 JNIEXPORT void JNICALL
@@ -207,6 +260,8 @@ main(int argc, char **argv)
   printf("totalcpu:%u availcpus:%u cpu:%u,node:%u: %u start:%llu end:%llu diff:%llu sum:%llu\n",
 	 totalcpus, availcpus, cpu, node,
 	 CACHE_LINE_SIZE, start, end, end - start, sum);
+
+  struct TscLog *log = (void *)tsclog_newlog(1024, 0); 
   return i;
 }
 #endif

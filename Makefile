@@ -21,7 +21,7 @@ libtsclog.so: tsclog.o
 	gcc -D __TSCLOG_LIB__ -shared -fPIC -o $@ $< -lc
 
 tsclog: tsclog.c now.h cacheline.h 
-	gcc -O2 -D COHERENCY_LINE_SIZE=${clinesize} -o $@ $<
+	gcc -O2 -D COHERENCY_LINE_SIZE=${clinesize} -DVERBOSE -o $@ $<
 
 clean:
 	rm -rf $(wildcard *.o *.s *.so *.class tsclog.h tsclog)

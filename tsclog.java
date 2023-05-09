@@ -39,12 +39,14 @@ public class tsclog
 	int cpu = tsclog.cpu();
 	int tid = tsclog.tid();
 	long tsc = tsclog.now();
-	
+
 	System.out.println("available cpus: " + avail);
 	System.out.println("cpu: " + cpu + " tid: " + tid +
 			   " now: " + Long.toUnsignedString(tsc));
-	
+
+	tsclog.stdout_label_now("pre pin");
 	tsclog.pin(avail-1);
+	tsclog.stdout_label_now("post pin");
 	cpu = tsclog.cpu();
 	tid = tsclog.tid();
 	tsc = tsclog.now();
