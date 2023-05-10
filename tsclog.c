@@ -19,14 +19,12 @@
 #include "buffer.h"
 #include "tsclogc.h"
 
+// if gettid optimization avaiable use it
 #if __GLIBC_PREREQ(2,30)
 #define _GNU_SOURCE
 #include <unistd.h>
-
 #else
-
 #include <sys/syscall.h>
-#error
 pid_t
 gettid(void)
 {
