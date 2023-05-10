@@ -40,13 +40,22 @@ void tsclog_pinCpu(int cpu)
     
 }
 
-static void tsclog_exit(int status, void *log)
+struct tsclog_exitargs {
+  void *log;
+  FILE *stream;
+  char *valhdrs;
+  int  binary;
+};
+
+static void tsclog_exit(int status, void *args)
 {
-  tsclog_write(log, stderr, 0, NULL);
+  struct tsclog_exitargs *a = args;
+  tsclog_write(a->log, a->stream, a->binary, a->valhdrs);
 }
 
 void *
-tsclog_newlog(uint32_t n, uint32_t values_per_entry) {
+tsclog_newlog(uint32_t n, uint32_t values_per_entry, int logonexit,
+	      FILE *stream, int binary, char *valhdrs) {
   struct TscLog *log;
   uint64_t now;
   uint64_t entrybytes = n * (sizeof(struct TscLogEntry) + (values_per_entry * sizeof(uint64_t)));
@@ -68,7 +77,14 @@ tsclog_newlog(uint32_t n, uint32_t values_per_entry) {
   log->hdr.info.tid = gettid();
   log->hdr.info.migrations = 0;
 
-  on_exit(tsclog_exit, log);
+  if (logonexit) {
+    struct tsclog_exitargs *args = malloc(sizeof(struct tsclog_exitargs));
+    args->log = log;
+    args->binary = binary;
+    args->stream = stream;
+    args->valhdrs = valhdrs; 
+    on_exit(tsclog_exit, (void *)args);
+  }
 #ifdef VERBOSE
   tsclog_write(log, stderr, 0, NULL);
   /*
@@ -284,7 +300,13 @@ main(int argc, char **argv)
 	 totalcpus, availcpus, cpu, node,
 	 CACHE_LINE_SIZE, start, end, end - start, sum);
 
-  void * log = (void *)tsclog_newlog(10, 0);
+  void * log = (void *)tsclog_newlog(10, // num entries
+				     0,  // num vals per entry
+				     1,  // log on exit
+				     stderr, // stream to write log
+				     0,      // log as binary
+				     NULL    // val headers
+				     );
 
   for (int j=0; j<10; j++) {
     tsclog_0(log);

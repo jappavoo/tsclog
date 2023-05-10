@@ -41,7 +41,9 @@ _Static_assert(sizeof(((struct TscLog *)0)->hdr.raw) >=
 _Static_assert(sizeof(void *) <= sizeof(uint64_t), "TscLog: void * too big");
 
 extern void tsclog_pinCpu(int cpu);   // -1 for current cpu
-extern void * tsclog_newlog(uint32_t n, uint32_t values_per_entry); // create new log
+extern void * tsclog_newlog(uint32_t n, uint32_t values_per_entry,
+			    int logonexit, FILE *stream, int binary,
+			    char *valhdrs); // create new log
 extern uint32_t tsclog_write(void *log, FILE *stream, int binary, char *valhdrs);
 
 static inline int
