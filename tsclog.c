@@ -11,12 +11,28 @@
 #include <sched.h>
 #include <sys/sysinfo.h>
 #include <inttypes.h>
+#include <sys/syscall.h>
 #include <assert.h>
 #include "now.h"
 #include "cacheline.h"
 #include "ntstore.h"
 #include "buffer.h"
 #include "tsclogc.h"
+
+#if __GLIBC_PREREQ(2,30)
+#define _GNU_SOURCE
+#include <unistd.h>
+
+#else
+
+#include <sys/syscall.h>
+#error
+pid_t
+gettid(void)
+{
+    return syscall(SYS_gettid);
+}
+#endif
 
 void tsclog_pinCpu(int cpu)
 {
@@ -158,7 +174,7 @@ tsclog_write(void *log, FILE *stream, int binary, char *valhdrs)
 #include "tsclog.h"
 
 JNIEXPORT jint JNICALL
-Java_tsclog_availcpus(JNIEnv *, jclass)
+Java_tsclog_availcpus(JNIEnv *env, jclass jcl)
 {
   return get_nprocs();
 }
@@ -170,7 +186,7 @@ Java_tsclog_pin(JNIEnv *env, jclass jcl, jint cpu)
 }
 
 JNIEXPORT jint JNICALL
-Java_tsclog_cpu(JNIEnv *, jclass)
+Java_tsclog_cpu(JNIEnv *env, jclass jcl)
 {
   unsigned int cpu, node;
   getcpu(&cpu, &node);
@@ -179,7 +195,7 @@ Java_tsclog_cpu(JNIEnv *, jclass)
 
 
 JNIEXPORT jint JNICALL
-Java_tsclog_tid(JNIEnv *, jclass)
+Java_tsclog_tid(JNIEnv *env, jclass jcl)
 {
   int tid;
   tid = gettid();
@@ -266,7 +282,7 @@ Java_tsclog_log(JNIEnv *env, jclass jcl, jlong lptr)
 
 
 JNIEXPORT void JNICALL
-Java_tsclog_log1(JNIEnv *, jclass, jlong lptr, jlong v1)
+Java_tsclog_log1(JNIEnv *env, jclass jcl, jlong lptr, jlong v1)
 {
 }
 
