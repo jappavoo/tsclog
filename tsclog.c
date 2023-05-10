@@ -15,6 +15,7 @@
 #include "now.h"
 #include "cacheline.h"
 #include "ntstore.h"
+#include "buffer.h"
 #include "tsclogc.h"
 
 void tsclog_pinCpu(int cpu)
@@ -58,7 +59,7 @@ tsclog_newlog(uint32_t n, uint32_t values_per_entry, int logonexit,
 	      FILE *stream, int binary, char *valhdrs) {
   struct TscLog *log;
   uint64_t now;
-  uint64_t entrybytes = n * (sizeof(struct TscLogEntry) + (values_per_entry * sizeof(uint64_t)));
+  uint64_t entrybytes = n * TscLogEntrySize(values_per_entry);
   uint64_t bytes = sizeof(struct TscLog) + entrybytes;
   
   if (!n)  return NULL;
@@ -66,11 +67,9 @@ tsclog_newlog(uint32_t n, uint32_t values_per_entry, int logonexit,
   log = aligned_alloc(CACHE_LINE_SIZE, bytes);
   assert(log);
   log->hdr.info.cur = &(log->entries[0]);
-  log->hdr.info.n   = 0;
+  log->hdr.info.overflow = 0;
   log->hdr.info.end = &(log->entries[entrybytes]);
   log->hdr.info.valperentry = values_per_entry;
-  log->hdr.info.len = n;
-  log->hdr.info.bytes = bytes;
   
   // initialize dynamic facts
   now = now_and_procid(&(log->hdr.info.cpuid));
@@ -108,17 +107,21 @@ uint32_t
 tsclog_write(void *log, FILE *stream, int binary, char *valhdrs)
 {
   struct TscLog *l = log;
-  uint64_t n = l->hdr.info.n;
-  uint32_t len = l->hdr.info.len;
   int numvals = l->hdr.info.valperentry;
-  
-  fprintf(stream, "TSC LOG: tid:%u cpuid:%u len:%u num:%lu"
-	  " valsperentry:%u migrations:%u entries:%p end:%p cur:%p bytes:%" PRIu64 "\n",
-	  l->hdr.info.tid, l->hdr.info.cpuid, l->hdr.info.len,
-	  l->hdr.info.n, l->hdr.info.valperentry, l->hdr.info.migrations,
-	  &(l->entries[0]), l->hdr.info.cur, l->hdr.info.end, l->hdr.info.bytes);
-  if (n > len) assert(0);
   struct TscLogEntry *e = (struct TscLogEntry *)&(l->entries[0]);
+  struct TscLogEntry *end = (struct TscLogEntry *)l->hdr.info.end;
+  struct TscLogEntry *cur = (struct TscLogEntry *)l->hdr.info.cur;
+  fprintf(stream, "TSC LOG: tid:%u cpuid:%u"
+	  " valsperentry:%u migrations:%u entries:%p end:%p cur:%p\n",
+	  l->hdr.info.tid, l->hdr.info.cpuid,
+	  l->hdr.info.valperentry, l->hdr.info.migrations,
+	  &(l->entries[0]), l->hdr.info.cur, l->hdr.info.end);
+  
+  if (l->hdr.info.overflow>0) {
+    fprintf(stream, "WARNING: overflow dumping all entries\n");
+    cur = end;
+  }
+
   fprintf(stream, "tsc");
 #ifdef LOG_CPU
   fprintf(stream, ",cpu");
@@ -133,8 +136,8 @@ tsclog_write(void *log, FILE *stream, int binary, char *valhdrs)
     }
   }
   fprintf(stream, "\n");
-  
-  for (int32_t i=0; i<n; i++) {
+
+  while (e!=cur) {
     fprintf(stream, "%"PRIu64, e->tsc);
 #ifdef LOG_CPU
     fprintf(stream, ",%u", e->cpu);
@@ -145,8 +148,8 @@ tsclog_write(void *log, FILE *stream, int binary, char *valhdrs)
     for (int i=0; i<numvals; i++) {
       fprintf(stream, ",%"PRId64, (int64_t)e->values[i]);
     }
-    e += 1;
-    e = (struct TscLogEntry *)((uint8_t *)e + (numvals * sizeof(TscLogValue_t)));
+    e = (struct TscLogEntry *)((uint8_t *)e +
+			       TscLogEntrySize(numvals));
     fprintf(stream, "\n");
   }
 }

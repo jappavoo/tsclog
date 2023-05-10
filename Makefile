@@ -1,9 +1,9 @@
 clinesize=$(shell cat /sys/devices/system/cpu/cpu0/cache/*/coherency_line_size | head -1)
 JAVA_INCLUDE=$(shell dirname $$(find /usr/lib/jvm/java-11* -name jni.h))
-HEADERS := now.h cacheline.h tsclogc.h
+HEADERS := now.h cacheline.h tsclogc.h buffer.h
 CFLAGS := -D COHERENCY_LINE_SIZE=${clinesize} -DVERBOSE
-#CFLAGS += -g
-CFLAGS += -O3
+CFLAGS += -g
+CFLAGS += -O0
 
 .PHONY: clean all
 
