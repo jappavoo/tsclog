@@ -15,41 +15,7 @@
 #include "now.h"
 #include "cacheline.h"
 #include "ntstore.h"
-
-//#define LOG_CPU
-//#define LOG_TID
-
-struct TscLogEntry {
-#ifdef LOG_CPU
-  uint32_t cpu;
-#endif
-#ifdef LOG_TID
-  uint32_t tid;
-#endif
-  uint64_t tsc;
-  uint64_t values[];
-};
-
-struct TscLog {
-  union Header {
-    char raw[CACHE_LINE_SIZE];
-    struct Info{
-      void    *cur;
-      uint64_t bytes;
-      uint32_t migrations;
-      uint32_t cpuid;
-      uint32_t valperentry;
-      uint32_t len;
-      uint32_t tid;
-    } info;
-  } hdr;
-  uint8_t entries[];
-} __attribute__ ((aligned (CACHE_LINE_SIZE)));;
-
-// Ensure header info fits within the raw size set aside 
-_Static_assert(sizeof(((struct TscLog *)0)->hdr.raw) >=
-	       sizeof(((struct TscLog *)0)->hdr.info),
-	       "TsLog Info exceeds a cacheline");
+#include "tsclogc.h"
 
 void tsclog_pinCpu(int cpu)
 {
@@ -74,19 +40,25 @@ void tsclog_pinCpu(int cpu)
     
 }
 
-uint64_t
+static void tsclog_exit(int status, void *log)
+{
+  tsclog_write(log, stderr, 0, NULL);
+}
+
+void *
 tsclog_newlog(uint32_t n, uint32_t values_per_entry) {
   struct TscLog *log;
   uint64_t now;
-  uint64_t mem = 0;
-  uint64_t bytes = sizeof(struct TscLog) +
-    n * (sizeof(struct TscLogEntry) + (values_per_entry * sizeof(uint64_t)));
-  if (n) {
-    mem = (uint64_t)aligned_alloc(CACHE_LINE_SIZE, bytes);
-  }
-  log = (void *)mem;
+  uint64_t entrybytes = n * (sizeof(struct TscLogEntry) + (values_per_entry * sizeof(uint64_t)));
+  uint64_t bytes = sizeof(struct TscLog) + entrybytes;
+  
+  if (!n)  return NULL;
+  
+  log = aligned_alloc(CACHE_LINE_SIZE, bytes);
   assert(log);
   log->hdr.info.cur = &(log->entries[0]);
+  log->hdr.info.n   = 0;
+  log->hdr.info.end = &(log->entries[entrybytes]);
   log->hdr.info.valperentry = values_per_entry;
   log->hdr.info.len = n;
   log->hdr.info.bytes = bytes;
@@ -95,21 +67,72 @@ tsclog_newlog(uint32_t n, uint32_t values_per_entry) {
   now = now_and_procid(&(log->hdr.info.cpuid));
   log->hdr.info.tid = gettid();
   log->hdr.info.migrations = 0;
-  
+
+  on_exit(tsclog_exit, log);
 #ifdef VERBOSE
+  tsclog_write(log, stderr, 0, NULL);
+  /*
   fprintf(stderr,
 	  "tsclog: now:%lu: new(n=%u, values_per_entry=%u):\n   bytes=%"
-	  PRIu64  "\n   mem=%" PRIx64 " cur=%p\n   tid=%u\n   "
+	  PRIu64  "\n   log=%p cur=%p\n   tid=%u\n   "
 	  "cpuid=%d\n   migrations=%u\n"
 	  "   sizeof(struct LogEntry)=%lu "
 	  "sizeof(struct Log)=%lu\n",  now,
 	  log->hdr.info.len, log->hdr.info.valperentry,
-	  log->hdr.info.bytes, mem, log->hdr.info.cur,
+	  log->hdr.info.bytes, log, log->hdr.info.cur,
 	  log->hdr.info.tid, log->hdr.info.cpuid,
 	  log->hdr.info.migrations,
 	  sizeof(struct TscLogEntry), sizeof(struct TscLog));
+  */
 #endif
-  return mem;
+  return log;
+}
+
+uint32_t
+tsclog_write(void *log, FILE *stream, int binary, char *valhdrs)
+{
+  struct TscLog *l = log;
+  uint64_t n = l->hdr.info.n;
+  uint32_t len = l->hdr.info.len;
+  int numvals = l->hdr.info.valperentry;
+  
+  fprintf(stream, "TSC LOG: tid:%u cpuid:%u len:%u num:%lu"
+	  " valsperentry:%u migrations:%u entries:%p end:%p cur:%p bytes:%" PRIu64 "\n",
+	  l->hdr.info.tid, l->hdr.info.cpuid, l->hdr.info.len,
+	  l->hdr.info.n, l->hdr.info.valperentry, l->hdr.info.migrations,
+	  &(l->entries[0]), l->hdr.info.cur, l->hdr.info.end, l->hdr.info.bytes);
+  if (n > len) assert(0);
+  struct TscLogEntry *e = (struct TscLogEntry *)&(l->entries[0]);
+  fprintf(stream, "tsc");
+#ifdef LOG_CPU
+  fprintf(stream, ",cpu");
+#endif    
+#ifdef LOG_TID
+  fprintf(stream, ",tid");
+#endif
+  if (valhdrs) fprintf(stream, "%s", valhdrs);
+  else {
+    for (int i=0; i<numvals; i++) {
+      fprintf(stream, ",val%d", i);
+    }
+  }
+  fprintf(stream, "\n");
+  
+  for (int32_t i=0; i<n; i++) {
+    fprintf(stream, "%"PRIu64, e->tsc);
+#ifdef LOG_CPU
+    fprintf(stream, ",%u", e->cpu);
+#endif    
+#ifdef LOG_TID
+    fprintf(stream, ",%u", e->tid);
+#endif
+    for (int i=0; i<numvals; i++) {
+      fprintf(stream, ",%"PRId64, (int64_t)e->values[i]);
+    }
+    e += 1;
+    e = (struct TscLogEntry *)((uint8_t *)e + (numvals * sizeof(TscLogValue_t)));
+    fprintf(stream, "\n");
+  }
 }
 
 #ifdef __TSCLOG_LIB__
@@ -261,7 +284,13 @@ main(int argc, char **argv)
 	 totalcpus, availcpus, cpu, node,
 	 CACHE_LINE_SIZE, start, end, end - start, sum);
 
-  struct TscLog *log = (void *)tsclog_newlog(1024, 0); 
+  void * log = (void *)tsclog_newlog(10, 0);
+
+  for (int j=0; j<10; j++) {
+    tsclog_0(log);
+  }
+  //tsclog_write(log, stderr, 0, NULL);
+  
   return i;
 }
 #endif

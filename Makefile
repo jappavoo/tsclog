@@ -1,5 +1,9 @@
 clinesize=$(shell cat /sys/devices/system/cpu/cpu0/cache/*/coherency_line_size | head -1)
 JAVA_INCLUDE=$(shell dirname $$(find /usr/lib/jvm/java-11* -name jni.h))
+HEADERS := now.h cacheline.h tsclogc.h
+CFLAGS := -D COHERENCY_LINE_SIZE=${clinesize} -DVERBOSE
+#CFLAGS += -g
+CFLAGS += -O3
 
 .PHONY: clean all
 
@@ -14,14 +18,14 @@ tsclog.class: tsclog.java
 tsclog.h: tsclog.class 
 	javac -h . tsclog.java
 
-tsclog.o: tsclog.c now.h cacheline.h tsclog.h
-	gcc -D COHERENCY_LINE_SIZE=${clinesize} -D __TSCLOG_LIB__ -O2 -c -fPIC -I${JAVA_INCLUDE} -I${JAVA_INCLUDE}/linux $< -o $@
+tsclog.o: tsclog.c ${HEADERS} tsclog.h
+	gcc ${CFLAGS} -D __TSCLOG_LIB__  -c -fPIC -I${JAVA_INCLUDE} -I${JAVA_INCLUDE}/linux $< -o $@
 
 libtsclog.so: tsclog.o
-	gcc -D __TSCLOG_LIB__ -shared -fPIC -o $@ $< -lc
+	gcc ${CFLAGS} -D __TSCLOG_LIB__ -shared -fPIC -o $@ $< -lc
 
-tsclog: tsclog.c now.h cacheline.h 
-	gcc -O2 -D COHERENCY_LINE_SIZE=${clinesize} -DVERBOSE -o $@ $<
+tsclog: tsclog.c ${HEADERS}
+	gcc ${CFLAGS} -o $@ $<
 
 clean:
 	rm -rf $(wildcard *.o *.s *.so *.class tsclog.h tsclog)
