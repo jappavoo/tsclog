@@ -9,7 +9,7 @@ public class tsclog
     public static native long stdout_label_now(String label);
     public static native long stderr_now();
     public static native long stderr_label_now(String label);
-    public static native long mklog(long n);
+    public static native long mklog(long n, int valsperentry);
     public static native void log(long lptr);
     public static native void log1(long lptr, long v1);
     
@@ -19,8 +19,8 @@ public class tsclog
 	System.loadLibrary("tsclog");
     }
 
-    public tsclog(long n) {
-	logptr = mklog(n);
+    public tsclog(long n, int valsperentry) {
+	logptr = mklog(n,valsperentry);
 	System.out.println("logptr: 0x" + Long.toUnsignedString(logptr,16));
     }
 
@@ -58,7 +58,10 @@ public class tsclog
 	tsclog.stdout_label_now("mapper1");
 	tsclog.stderr_label_now("mapper2");
 	
-	tsclog log = new tsclog(1000);
+	tsclog log = new tsclog(10,0);
+	for (int i=0; i<10; i++) {
+	    log.log();
+	}
 	
     }
 }

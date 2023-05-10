@@ -245,14 +245,25 @@ Java_tsclog_stderr_1label_1now(JNIEnv *env,
 }
 
 JNIEXPORT jlong JNICALL
-Java_tsclog_mklog(JNIEnv *env, jclass jcl, jlong n)
+Java_tsclog_mklog(JNIEnv *env, jclass jcl, jlong n, jint valsperentry)
 {
+  void * log = (void *)tsclog_newlog(n, // num entries
+				     valsperentry,  // num vals per entry
+				     1,  // log on exit
+				     stderr, // stream to write log
+				     0,      // log as binary
+				     NULL    // val headers
+				     );
+  return (jlong)log;
 }
 
 JNIEXPORT void JNICALL
 Java_tsclog_log(JNIEnv *env, jclass jcl, jlong lptr)
 {
+  void *log = (void *)lptr;
+  tsclog_0(log);
 }
+
 
 JNIEXPORT void JNICALL
 Java_tsclog_log1(JNIEnv *, jclass, jlong lptr, jlong v1)
