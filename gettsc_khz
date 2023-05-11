@@ -1,0 +1,4 @@
+#!/bin/bash
+
+val=$(sudo grep 'tsc:.*cal' /var/log/dmesg | sed 's/.*: //g' | cut -d' ' -f1)
+echo -e "scale=4\n$val * 1000"  | bc
