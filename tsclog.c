@@ -13,6 +13,7 @@
 #include <inttypes.h>
 #include <sys/syscall.h>
 #include <assert.h>
+#include <string.h>
 #include "now.h"
 #include "cacheline.h"
 #include "ntstore.h"
@@ -66,10 +67,19 @@ static void tsclog_exit(int status, void *args)
 {
   struct tsclog_exitargs *a = args;
   tsclog_write(a->log, a->stream, a->binary, a->valhdrs);
+  tsclog_freelog(a->log);
+  free(args);
+}
+
+void
+tsclog_freelog(void *log)
+{
+  free(log);
 }
 
 void *
-tsclog_newlog(uint32_t n, uint32_t values_per_entry, int logonexit,
+tsclog_newlog(char *name, uint32_t n, uint32_t values_per_entry,
+	      int logonexit,
 	      FILE *stream, int binary, char *valhdrs) {
   struct TscLog *log;
   uint64_t now;
@@ -80,6 +90,11 @@ tsclog_newlog(uint32_t n, uint32_t values_per_entry, int logonexit,
   
   log = aligned_alloc(CACHE_LINE_SIZE, bytes);
   assert(log);
+  if (name) {
+    strncpy(log->name, name, sizeof(log->name));
+  } else {
+    bzero(log->name, sizeof(log->name));
+  }
   log->hdr.info.cur = &(log->entries[0]);
   log->hdr.info.overflow = 0;
   log->hdr.info.end = &(log->entries[entrybytes]);
@@ -125,8 +140,9 @@ tsclog_write(void *log, FILE *stream, int binary, char *valhdrs)
   struct TscLogEntry *e = (struct TscLogEntry *)&(l->entries[0]);
   struct TscLogEntry *end = (struct TscLogEntry *)l->hdr.info.end;
   struct TscLogEntry *cur = (struct TscLogEntry *)l->hdr.info.cur;
-  fprintf(stream, "TSC LOG: tid:%u cpuid:%u"
+  fprintf(stream, "TSC LOG: name:%s tid:%u cpuid:%u"
 	  " valsperentry:%u migrations:%u entries:%p end:%p cur:%p\n",
+	  l->name,
 	  l->hdr.info.tid, l->hdr.info.cpuid,
 	  l->hdr.info.valperentry, l->hdr.info.migrations,
 	  &(l->entries[0]), l->hdr.info.cur, l->hdr.info.end);
@@ -143,7 +159,7 @@ tsclog_write(void *log, FILE *stream, int binary, char *valhdrs)
 #ifdef LOG_TID
   fprintf(stream, ",tid");
 #endif
-  if (valhdrs) fprintf(stream, "%s", valhdrs);
+  if (valhdrs) fprintf(stream, ",%s", valhdrs);
   else {
     for (int i=0; i<numvals; i++) {
       fprintf(stream, ",val%d", i);
@@ -259,15 +275,31 @@ Java_tsclog_stderr_1label_1now(JNIEnv *env,
 }
 
 JNIEXPORT jlong JNICALL
-Java_tsclog_mklog(JNIEnv *env, jclass jcl, jlong n, jint valsperentry)
+Java_tsclog_mklog(JNIEnv *env, jclass jcl, jstring name, jlong n,
+		  jint valsperentry, jint logonexit,
+		  jint binary, jstring valhdrs)
 {
-  void * log = (void *)tsclog_newlog(n, // num entries
+  const char * cn = (*env)->GetStringUTFChars(env, name, NULL);
+  const char * tmp= (*env)->GetStringUTFChars(env, valhdrs, NULL);
+  char * vhdrs = NULL;
+
+  if (tmp) {
+    int n = strlen(tmp);
+    if (n>0) {
+      n++; // for null
+      vhdrs = malloc(n);
+      strncpy(vhdrs, tmp, n);
+    }
+  }
+  (*env)->ReleaseStringUTFChars(env, valhdrs, tmp);
+  void * log = (void *)tsclog_newlog((char *)cn, n, // num entries
 				     valsperentry,  // num vals per entry
 				     1,  // log on exit
 				     stderr, // stream to write log
 				     0,      // log as binary
-				     NULL    // val headers
+				     vhdrs    // val headers
 				     );
+  (*env)->ReleaseStringUTFChars(env, name, cn);
   return (jlong)log;
 }
 
@@ -282,6 +314,31 @@ Java_tsclog_log(JNIEnv *env, jclass jcl, jlong lptr)
 JNIEXPORT void JNICALL
 Java_tsclog_log1(JNIEnv *env, jclass jcl, jlong lptr, jlong v1)
 {
+  void *log = (void *)lptr;
+  tsclog_1(log, v1);
+}
+
+JNIEXPORT void JNICALL
+Java_tsclog_log2(JNIEnv *env, jclass jcl, jlong lptr, jlong v1, jlong v2)
+{
+  void *log = (void *)lptr;
+  tsclog_2(log, v1, v2);
+}
+
+JNIEXPORT void JNICALL
+Java_tsclog_log3(JNIEnv *env, jclass jcl, jlong lptr, jlong v1, jlong v2,
+		 jlong v3)
+{
+  void *log = (void *)lptr;
+  tsclog_3(log, v1, v2, v3);
+}
+
+JNIEXPORT void JNICALL
+Java_tsclog_log4(JNIEnv *env, jclass jcl, jlong lptr, jlong v1, jlong v2,
+		 jlong v3, jlong v4)
+{
+  void *log = (void *)lptr;
+  tsclog_4(log, v1, v2, v3, v4);
 }
 
 
@@ -328,9 +385,9 @@ main(int argc, char **argv)
 	 totalcpus, availcpus, cpu, node,
 	 CACHE_LINE_SIZE, start, end, end - start, sum);
 
-  void * log = (void *)tsclog_newlog(10, // num entries
+  void * log = (void *)tsclog_newlog(NULL, 10, // num entries
 				     0,  // num vals per entry
-				     1,  // log on exit
+				     0,  // log on exit
 				     stderr, // stream to write log
 				     0,      // log as binary
 				     NULL    // val headers
@@ -339,8 +396,23 @@ main(int argc, char **argv)
   for (int j=0; j<10; j++) {
     tsclog_0(log);
   }
-  //tsclog_write(log, stderr, 0, NULL);
+
+  tsclog_write(log, stderr, 0, NULL);
+  tsclog_freelog(log);
   
+  log = (void *)tsclog_newlog("My LOG", 10, // num entries
+			      2,  // num vals per entry
+			      1,  // log on exit
+			      stderr, // stream to write log
+			      0,      // log as binary
+			      "j,i"    // val headers
+			      );
+
+  for (int j=0; j<10; j++) {
+    tsclog_pinCpu(i%availcpus);
+    tsclog_2(log,j,i);
+  }
+
   return i;
 }
 #endif

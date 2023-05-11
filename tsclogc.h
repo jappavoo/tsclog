@@ -32,6 +32,7 @@ struct TscLog {
       uint32_t tid;
     } info;
   } hdr;
+  char name[CACHE_LINE_SIZE];
   uint8_t entries[];
 } __attribute__ ((aligned (CACHE_LINE_SIZE)));;
 
@@ -43,11 +44,11 @@ _Static_assert(sizeof(((struct TscLog *)0)->hdr.raw) >=
 _Static_assert(sizeof(void *) <= sizeof(uint64_t), "TscLog: void * too big");
 
 extern void tsclog_pinCpu(int cpu);   // -1 for current cpu
-extern void * tsclog_newlog(uint32_t n, uint32_t values_per_entry,
+extern void * tsclog_newlog(char *name, uint32_t n, uint32_t values_per_entry,
 			    int logonexit, FILE *stream, int binary,
 			    char *valhdrs); // create new log
 extern uint32_t tsclog_write(void *log, FILE *stream, int binary, char *valhdrs);
-
+extern void tsclog_freelog(void *log);
 
 static inline struct TscLogEntry *
 tsclog_getentry(void *log, uint32_t numvals)
