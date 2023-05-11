@@ -409,11 +409,11 @@ main(int argc, char **argv)
 			      );
 
   for (int j=0; j<10; j++) {
-    tsclog_pinCpu(i%availcpus);
+    tsclog_pinCpu(j%availcpus);
     tsclog_2(log,j,i);
   }
 
-  return i;
+  return 0;
 }
 #endif
 	 

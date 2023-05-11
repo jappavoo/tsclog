@@ -1,16 +1,18 @@
 clinesize=$(shell cat /sys/devices/system/cpu/cpu0/cache/*/coherency_line_size | head -1)
 JAVA_INCLUDE=$(shell dirname $$(find /usr/lib/jvm/java-11* -name jni.h))
 HEADERS := now.h cacheline.h tsclogc.h buffer.h
-CFLAGS := -D COHERENCY_LINE_SIZE=${clinesize} -DVERBOSE
-CFLAGS += -g
-CFLAGS += -O0
+CFLAGS := -D COHERENCY_LINE_SIZE=${clinesize} 
+#CFLAGS += -DVERBOSE
+#CFLAGS += -g
+CFLAGS += -O3
 
 .PHONY: clean all
 
 all: run
 
-run: libtsclog.so
+run: libtsclog.so tsclog
 	java  -Djava.library.path=$(shell pwd) tsclog
+	./tsclog
 
 tsclog.class: tsclog.java
 	javac tsclog.java
