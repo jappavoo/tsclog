@@ -1,0 +1,11 @@
+#!/bin/bash
+
+#!/bin/bash
+
+val=$(sudo grep 'tsc:.*cal' /var/log/dmesg | sed 's/.*: //g' | cut -d' ' -f1)
+tsc_khz=$(echo -e "scale=4\n$val * 1000"  | bc)
+
+(echo "scale=10";
+while read val; do
+      echo "$val * (1/($tsc_khz * 1000))"
+done) | bc

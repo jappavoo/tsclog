@@ -1,0 +1,7 @@
+#!/bin/bash
+
+read v1
+while read v2; do
+  echo $v2 - $v1
+  v1=$v2
+done | bc
