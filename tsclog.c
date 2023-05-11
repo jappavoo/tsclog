@@ -289,7 +289,7 @@ Java_tsclog_mklog(JNIEnv *env, jclass jcl, jstring name, jlong n,
       n++; // for null
       vhdrs = malloc(n);
 #pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstringop-truncation"
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
       strncpy(vhdrs, tmp, n);
 #pragma GCC diagnostic pop;
     }
