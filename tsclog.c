@@ -288,7 +288,10 @@ Java_tsclog_mklog(JNIEnv *env, jclass jcl, jstring name, jlong n,
     if (n>0) {
       n++; // for null
       vhdrs = malloc(n);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
       strncpy(vhdrs, tmp, n);
+#pragma GCC diagnostic pop;
     }
   }
   (*env)->ReleaseStringUTFChars(env, valhdrs, tmp);
