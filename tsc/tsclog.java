@@ -1,3 +1,5 @@
+package tsc;
+
 public class tsclog
 {
     public static native int availcpus();

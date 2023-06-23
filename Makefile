@@ -11,14 +11,14 @@ CFLAGS += -O3
 all: run
 
 run: libtsclog.so tsclog
-	java  -Djava.library.path=$(shell pwd) tsclog
+	java  -Djava.library.path=$(shell pwd) tsc/tsclog
 	./tsclog
 
-tsclog.class: tsclog.java
-	javac tsclog.java
+tsclog.class: tsc/tsclog.java
+	javac tsc/tsclog.java
 
 tsclog.h: tsclog.class 
-	javac -h . tsclog.java
+	javac -h . tsc/tsclog.java
 
 tsclog.o: tsclog.c ${HEADERS} tsclog.h
 	gcc ${CFLAGS} -D __TSCLOG_LIB__  -c -fPIC -I${JAVA_INCLUDE} -I${JAVA_INCLUDE}/linux $< -o $@

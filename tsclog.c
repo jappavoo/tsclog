@@ -185,7 +185,7 @@ tsclog_write(void *log, FILE *stream, int binary, char *valhdrs)
 }
 
 #ifdef __TSCLOG_LIB__
-#include "tsclog.h"
+#include "tsc_tsclog.h"
 
 JNIEXPORT jint JNICALL
 Java_tsclog_availcpus(JNIEnv *env, jclass jcl)
