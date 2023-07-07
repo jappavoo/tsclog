@@ -185,22 +185,22 @@ tsclog_write(void *log, FILE *stream, int binary, char *valhdrs)
 }
 
 #ifdef __TSCLOG_LIB__
-#include "tsclog.h"
+#include "edu_bu_cs_sesa_tsclog_tsclog.h"
 
 JNIEXPORT jint JNICALL
-Java_tsclog_availcpus(JNIEnv *env, jclass jcl)
+Java_edu_bu_cs_sesa_tsclog_tsclog_availcpus(JNIEnv *env, jclass jcl)
 {
   return get_nprocs();
 }
 
 JNIEXPORT void JNICALL
-Java_tsclog_pin(JNIEnv *env, jclass jcl, jint cpu)
+Java_edu_bu_cs_sesa_tsclog_tsclog_pin(JNIEnv *env, jclass jcl, jint cpu)
 {
   tsclog_pinCpu(cpu);
 }
 
 JNIEXPORT jint JNICALL
-Java_tsclog_cpu(JNIEnv *env, jclass jcl)
+Java_edu_bu_cs_sesa_tsclog_tsclog_cpu(JNIEnv *env, jclass jcl)
 {
   unsigned int cpu, node;
   getcpu(&cpu, &node);
@@ -209,7 +209,7 @@ Java_tsclog_cpu(JNIEnv *env, jclass jcl)
 
 
 JNIEXPORT jint JNICALL
-Java_tsclog_tid(JNIEnv *env, jclass jcl)
+Java_edu_bu_cs_sesa_tsclog_tsclog_tid(JNIEnv *env, jclass jcl)
 {
   int tid;
   tid = gettid();
@@ -217,13 +217,13 @@ Java_tsclog_tid(JNIEnv *env, jclass jcl)
 }
 
 JNIEXPORT jlong JNICALL
-Java_tsclog_now(JNIEnv *env, jclass jcl)
+Java_edu_bu_cs_sesa_tsclog_tsclog_now(JNIEnv *env, jclass jcl)
 {
   return now();
 }
 
 JNIEXPORT jlong JNICALL
-Java_tsclog_stdout_1now(JNIEnv *env, jclass jcl)
+Java_edu_bu_cs_sesa_tsclog_tsclog_stdout_1now(JNIEnv *env, jclass jcl)
 {
   uint32_t cpuid;
   uint64_t now = now_and_procid(&cpuid);
@@ -234,7 +234,7 @@ Java_tsclog_stdout_1now(JNIEnv *env, jclass jcl)
 }
 
 JNIEXPORT jlong JNICALL
-Java_tsclog_stderr_1now(JNIEnv *env, jclass jcl)
+Java_edu_bu_cs_sesa_tsclog_tsclog_stderr_1now(JNIEnv *env, jclass jcl)
 {
   uint32_t cpuid;
   uint64_t now = now_and_procid(&cpuid);
@@ -245,7 +245,7 @@ Java_tsclog_stderr_1now(JNIEnv *env, jclass jcl)
 }
 
 JNIEXPORT jlong JNICALL
-Java_tsclog_stdout_1label_1now(JNIEnv *env, jclass jcl,
+Java_edu_bu_cs_sesa_tsclog_tsclog_stdout_1label_1now(JNIEnv *env, jclass jcl,
 					     jstring label)
 {
   const char * cp = (*env)->GetStringUTFChars(env, label, NULL);
@@ -260,7 +260,7 @@ Java_tsclog_stdout_1label_1now(JNIEnv *env, jclass jcl,
 }
 
 JNIEXPORT jlong JNICALL
-Java_tsclog_stderr_1label_1now(JNIEnv *env,
+Java_edu_bu_cs_sesa_tsclog_tsclog_stderr_1label_1now(JNIEnv *env,
 			       jclass jcl,
 			       jstring label)
 {
@@ -275,7 +275,7 @@ Java_tsclog_stderr_1label_1now(JNIEnv *env,
 }
 
 JNIEXPORT jlong JNICALL
-Java_tsclog_mklog(JNIEnv *env, jclass jcl, jstring name, jlong n,
+Java_edu_bu_cs_sesa_tsclog_tsclog_mklog(JNIEnv *env, jclass jcl, jstring name, jlong n,
 		  jint valsperentry, jint logonexit,
 		  jint binary, jstring valhdrs)
 {
@@ -307,7 +307,7 @@ Java_tsclog_mklog(JNIEnv *env, jclass jcl, jstring name, jlong n,
 }
 
 JNIEXPORT void JNICALL
-Java_tsclog_log(JNIEnv *env, jclass jcl, jlong lptr)
+Java_edu_bu_cs_sesa_tsclog_tsclog_log(JNIEnv *env, jclass jcl, jlong lptr)
 {
   void *log = (void *)lptr;
   tsclog_0(log);
@@ -315,21 +315,21 @@ Java_tsclog_log(JNIEnv *env, jclass jcl, jlong lptr)
 
 
 JNIEXPORT void JNICALL
-Java_tsclog_log1(JNIEnv *env, jclass jcl, jlong lptr, jlong v1)
+Java_edu_bu_cs_sesa_tsclog_tsclog_log1(JNIEnv *env, jclass jcl, jlong lptr, jlong v1)
 {
   void *log = (void *)lptr;
   tsclog_1(log, v1);
 }
 
 JNIEXPORT void JNICALL
-Java_tsclog_log2(JNIEnv *env, jclass jcl, jlong lptr, jlong v1, jlong v2)
+Java_edu_bu_cs_sesa_tsclog_tsclog_log2(JNIEnv *env, jclass jcl, jlong lptr, jlong v1, jlong v2)
 {
   void *log = (void *)lptr;
   tsclog_2(log, v1, v2);
 }
 
 JNIEXPORT void JNICALL
-Java_tsclog_log3(JNIEnv *env, jclass jcl, jlong lptr, jlong v1, jlong v2,
+Java_edu_bu_cs_sesa_tsclog_tsclog_log3(JNIEnv *env, jclass jcl, jlong lptr, jlong v1, jlong v2,
 		 jlong v3)
 {
   void *log = (void *)lptr;
@@ -337,7 +337,7 @@ Java_tsclog_log3(JNIEnv *env, jclass jcl, jlong lptr, jlong v1, jlong v2,
 }
 
 JNIEXPORT void JNICALL
-Java_tsclog_log4(JNIEnv *env, jclass jcl, jlong lptr, jlong v1, jlong v2,
+Java_edu_bu_cs_sesa_tsclog_tsclog_log4(JNIEnv *env, jclass jcl, jlong lptr, jlong v1, jlong v2,
 		 jlong v3, jlong v4)
 {
   void *log = (void *)lptr;
